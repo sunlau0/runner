@@ -25,11 +25,22 @@ const defaultState = {
   recommendations: null,
   currentPlan: [],
   aiCoach: "",
+  ai: {
+    apiKey: "",
+    model: "gpt-5-mini",
+    llmSummary: "",
+    planInsight: "",
+    activityInsights: {},
+    status: "idle",
+    lastError: "",
+    lastUpdated: "",
+  },
   lastInsight: "",
 };
 
 const currentStatusForm = document.querySelector("#currentStatusForm");
 const goalForm = document.querySelector("#goalForm");
+const aiCoachConfigForm = document.querySelector("#aiCoachConfigForm");
 const activityForm = document.querySelector("#activityForm");
 const weatherStatus = document.querySelector("#weatherStatus");
 const weatherCards = document.querySelector("#weatherCards");
@@ -48,6 +59,8 @@ const blockedDayPicker = document.querySelector("#blockedDayPicker");
 const fitnessCards = document.querySelector("#fitnessCards");
 const fitnessNarrative = document.querySelector("#fitnessNarrative");
 const aiCoachSummary = document.querySelector("#aiCoachSummary");
+const aiCoachMeta = document.querySelector("#aiCoachMeta");
+const aiCoachRefreshBtn = document.querySelector("#aiCoachRefreshBtn");
 const goalProgressFill = document.querySelector("#goalProgressFill");
 const goalProgressLabel = document.querySelector("#goalProgressLabel");
 const goalProgressDetail = document.querySelector("#goalProgressDetail");
@@ -107,10 +120,29 @@ async function handleProfileSubmit(event) {
   updateHeadlines();
   await refreshWeather();
   generatePlan();
+  if (state.ai.apiKey) {
+    await refreshRealAiCoach("profile_update");
+  }
 }
 
 currentStatusForm.addEventListener("submit", handleProfileSubmit);
 goalForm.addEventListener("submit", handleProfileSubmit);
+aiCoachConfigForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const values = Object.fromEntries(new FormData(aiCoachConfigForm).entries());
+  state.ai.apiKey = String(values.apiKey || "").trim();
+  state.ai.model = String(values.aiModel || "gpt-5-mini").trim() || "gpt-5-mini";
+  state.ai.lastError = "";
+  persistState();
+  renderAiCoach();
+  if (state.ai.apiKey) {
+    await refreshRealAiCoach("config_update");
+  }
+});
+
+aiCoachRefreshBtn.addEventListener("click", async () => {
+  await refreshRealAiCoach("manual_refresh");
+});
 
 activityForm.addEventListener("submit", (event) => {
   event.preventDefault();
@@ -121,6 +153,7 @@ activityForm.addEventListener("submit", (event) => {
   refreshFitness();
   renderActivities();
   generatePlan();
+  if (state.ai.apiKey) refreshRealAiCoach("activity_update");
   activityForm.reset();
   activityForm.date.valueAsDate = new Date();
 });
@@ -148,6 +181,7 @@ csvInput.addEventListener("change", async (event) => {
   refreshFitness();
   renderActivities();
   generatePlan();
+  if (state.ai.apiKey) refreshRealAiCoach("csv_import");
   csvStatus.textContent = `已處理 ${files.length} 個 CSV，新增 / 合併 ${imported.length} 筆活動紀錄。 ${importMessages.join(" | ")}`;
   csvInput.value = "";
 });
@@ -222,6 +256,10 @@ function loadState() {
     return {
       ...defaultState,
       ...saved,
+      ai: {
+        ...defaultState.ai,
+        ...(saved.ai || {}),
+      },
       profile: {
         ...defaultState.profile,
         ...(saved.profile || {}),
@@ -239,6 +277,7 @@ function persistState() {
 
 function hydrateForms() {
   const { profile } = state;
+  const ai = state.ai || defaultState.ai;
   goalForm.location.value = profile.location;
   goalForm.goal.value = profile.goal;
   goalForm.experience.value = profile.experience;
@@ -252,6 +291,8 @@ function hydrateForms() {
   currentStatusForm.sleepQuality.value = profile.sleepQuality;
   currentStatusForm.injuryStatus.value = profile.injuryStatus;
   currentStatusForm.lifeNotes.value = profile.lifeNotes || "";
+  aiCoachConfigForm.apiKey.value = ai.apiKey || "";
+  aiCoachConfigForm.aiModel.value = ai.model || "gpt-5-mini";
   activityForm.date.valueAsDate = new Date();
 
   document.querySelectorAll("#timeWindowPickerWeekday .chip").forEach((chip) => {
@@ -562,6 +603,281 @@ function buildAiCoachNarrative(fitness, profile, recommendations) {
     `如果之後有新紀錄、睡眠變差，或者某幾日跑唔到，課表會再自動轉保守。`;
 }
 
+async function refreshRealAiCoach(reason = "manual") {
+  if (!state.ai?.apiKey) {
+    state.ai.status = "idle";
+    state.ai.lastError = "未設定 OpenAI API key";
+    persistState();
+    renderAiCoach();
+    return;
+  }
+
+  state.ai.status = "loading";
+  state.ai.lastError = "";
+  persistState();
+  renderAiCoach();
+
+  try {
+    const summary = await fetchOpenAiCoachSummary();
+    state.ai.llmSummary = summary;
+    state.ai.planInsight = await fetchOpenAiPlanInsight();
+    state.ai.status = "ready";
+    state.ai.lastUpdated = new Date().toISOString();
+    state.ai.lastError = "";
+  } catch (error) {
+    state.ai.status = "error";
+    state.ai.lastError = error.message || "真 AI 分析失敗";
+  }
+
+  persistState();
+  renderAiCoach();
+}
+
+async function fetchOpenAiCoachSummary() {
+  const prompt = buildOpenAiCoachPrompt();
+  const response = await fetch("https://api.openai.com/v1/responses", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${state.ai.apiKey}`,
+    },
+    body: JSON.stringify({
+      model: state.ai.model || "gpt-5-mini",
+      instructions:
+        "你是一位專業跑步教練。請使用繁體中文，以香港跑手熟悉的廣東話書面語，根據使用者提供的訓練資料，產生具體、務實、可執行的教練分析。重點放在目前能力、主要限制、本週最應該做好的 2-3 件事，以及課表如何因應近況調整。避免空泛鼓勵，避免過長。",
+      input: buildOpenAiCoachPrompt(),
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`OpenAI API 錯誤：${response.status} ${errorText}`);
+  }
+
+  const data = await response.json();
+  const text = data.output_text || extractResponseText(data);
+  if (!text) throw new Error("AI 未返回可讀內容");
+  return text.trim();
+}
+
+async function fetchOpenAiPlanInsight() {
+  const response = await fetch("https://api.openai.com/v1/responses", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${state.ai.apiKey}`,
+    },
+    body: JSON.stringify({
+      model: state.ai.model || "gpt-5-mini",
+      instructions:
+        "你是一位專業跑步教練。請用繁體中文廣東話書面語，根據一週課表骨架，寫出一段不多於 120 字的週計劃摘要，講清楚今週主線、長課重點、需要保守的地方。",
+      input: buildOpenAiPlanPrompt(),
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`OpenAI API 錯誤：${response.status} ${errorText}`);
+  }
+
+  const data = await response.json();
+  const text = data.output_text || extractResponseText(data);
+  if (!text) throw new Error("AI 未返回週計劃摘要");
+  return text.trim();
+}
+
+function buildOpenAiCoachPrompt() {
+  const profile = state.profile;
+  const fitness = state.fitness || deriveFitness(state.activities, profile);
+  const recommendations = state.recommendations || deriveRecommendations(fitness, profile);
+  const plan = (state.currentPlan || []).map((item) => ({
+    day: item.day,
+    weekday: item.weekday,
+    sessionType: item.sessionType,
+    label: item.label,
+  }));
+  const recentActivities = state.activities.slice(0, 8).map((activity) => ({
+    date: activity.date,
+    type: activity.type,
+    distance: activity.distance,
+    duration: activity.duration,
+    pace: activity.pace,
+    avgHr: activity.avgHr,
+    rpe: activity.rpe,
+    cadence: activity.cadence,
+    groundTime: activity.groundTime,
+    verticalOscillation: activity.verticalOscillation,
+    notes: activity.notes,
+  }));
+
+  return [
+    "請根據以下跑步教練資料作分析，輸出 4 個段落：",
+    "1. 目前能力判斷",
+    "2. 本週最重要限制",
+    "3. 對本週課表既調整理由",
+    "4. 最具體的 3 個執行重點",
+    "",
+    "使用者設定：",
+    JSON.stringify({
+      goal: profile.goal,
+      raceDate: profile.raceDate,
+      targetTime: profile.targetTime,
+      daysPerWeek: profile.daysPerWeek,
+      longRunDay: profile.longRunDay,
+      lifeLoad: profile.lifeLoad,
+      sleepQuality: profile.sleepQuality,
+      injuryStatus: profile.injuryStatus,
+      blockedDays: profile.blockedDays,
+      lifeNotes: profile.lifeNotes,
+      weekdaySlots: profile.weekdaySlots,
+      weekendSlots: profile.weekendSlots,
+    }, null, 2),
+    "",
+    "體能分析：",
+    JSON.stringify({
+      readiness: fitness.readiness,
+      fatigue: fitness.fatigue,
+      consistency: fitness.consistency,
+      weeklyLoad: fitness.weeklyLoad,
+      efficiencyScore: fitness.efficiencyScore,
+      currentAbilityPace: fitness.currentAbilityPace ? formatPace(fitness.currentAbilityPace) : null,
+      targetPace: fitness.targetPace ? formatPace(fitness.targetPace) : null,
+      abilityLabel: fitness.abilityLabel,
+      abilitySummary: fitness.abilitySummary,
+    }, null, 2),
+    "",
+    "規則引擎建議：",
+    JSON.stringify(recommendations, null, 2),
+    "",
+    "本週課表骨架：",
+    JSON.stringify(plan, null, 2),
+    "",
+    "最近活動：",
+    JSON.stringify(recentActivities, null, 2),
+  ].join("\n");
+}
+
+function buildOpenAiPlanPrompt() {
+  const profile = state.profile;
+  const fitness = state.fitness || deriveFitness(state.activities, profile);
+  const schedule = (state.currentPlan || []).map((item) => ({
+    weekday: item.weekday,
+    sessionType: item.sessionType,
+    label: item.label,
+    total: item.detailTable?.totalShort || "",
+    weather: item.detailTable?.overview?.weather || "",
+  }));
+
+  return [
+    "請根據以下資料，總結本週訓練計劃重點。",
+    "目標：",
+    JSON.stringify({
+      goal: profile.goal,
+      raceDate: profile.raceDate,
+      targetTime: profile.targetTime,
+      injuryStatus: profile.injuryStatus,
+      blockedDays: profile.blockedDays,
+      lifeNotes: profile.lifeNotes,
+    }, null, 2),
+    "",
+    "目前狀態：",
+    JSON.stringify({
+      readiness: fitness.readiness,
+      fatigue: fitness.fatigue,
+      currentAbilityPace: fitness.currentAbilityPace ? formatPace(fitness.currentAbilityPace) : null,
+    }, null, 2),
+    "",
+    "本週課表：",
+    JSON.stringify(schedule, null, 2),
+  ].join("\n");
+}
+
+async function refreshActivityAiAnalysis(activity) {
+  if (!state.ai?.apiKey) return;
+  const key = activityInsightKey(activity);
+  state.ai.activityInsights = state.ai.activityInsights || {};
+  state.ai.activityInsights[key] = { status: "loading", text: "" };
+  persistState();
+  renderActivityDetail(activity);
+
+  try {
+    const text = await fetchOpenAiActivityInsight(activity);
+    state.ai.activityInsights[key] = {
+      status: "ready",
+      text,
+      updatedAt: new Date().toISOString(),
+    };
+  } catch (error) {
+    state.ai.activityInsights[key] = {
+      status: "error",
+      text: error.message || "AI 活動分析失敗",
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+  persistState();
+  renderActivityDetail(activity);
+}
+
+async function fetchOpenAiActivityInsight(activity) {
+  const similar = state.activities
+    .filter((item) => item.type === activity.type && item.date !== activity.date)
+    .slice(0, 5)
+    .map((item) => ({
+      date: item.date,
+      distance: item.distance,
+      pace: item.pace,
+      avgHr: item.avgHr,
+      rpe: item.rpe,
+    }));
+
+  const response = await fetch("https://api.openai.com/v1/responses", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${state.ai.apiKey}`,
+    },
+    body: JSON.stringify({
+      model: state.ai.model || "gpt-5-mini",
+      instructions:
+        "你是一位專業跑步教練。請用繁體中文廣東話書面語分析單次跑步活動，輸出 3 段：1. 今次活動表現，2. run dynamics / 配速 / 心率最值得留意的點，3. 下一步改善建議。內容具體，避免空泛。",
+      input: JSON.stringify({
+        activity,
+        currentFitness: state.fitness,
+        plannedSession: (state.currentPlan || []).find((item) => item.day === activity.date) || null,
+        similarActivities: similar,
+      }, null, 2),
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`OpenAI API 錯誤：${response.status} ${errorText}`);
+  }
+
+  const data = await response.json();
+  const text = data.output_text || extractResponseText(data);
+  if (!text) throw new Error("AI 未返回活動分析");
+  return text.trim();
+}
+
+function activityInsightKey(activity) {
+  return `${activity.date}|${activity.type}|${activity.distance}|${activity.duration}`;
+}
+
+function extractResponseText(data) {
+  const outputs = Array.isArray(data.output) ? data.output : [];
+  const textParts = [];
+  outputs.forEach((item) => {
+    const content = Array.isArray(item.content) ? item.content : [];
+    content.forEach((part) => {
+      if (part.type === "output_text" && typeof part.text === "string") textParts.push(part.text);
+      else if (typeof part.text === "string") textParts.push(part.text);
+    });
+  });
+  return textParts.join("\n").trim();
+}
+
 function renderFitness() {
   const fitness = state.fitness || deriveFitness(state.activities, state.profile);
   const recommendations = state.recommendations || deriveRecommendations(fitness, state.profile);
@@ -595,7 +911,38 @@ function renderFitness() {
 }
 
 function renderAiCoach() {
-  aiCoachSummary.textContent = state.aiCoach || "完成設定後會生成 AI 教練建議。";
+  const llmSummary = state.ai?.llmSummary || "";
+  const ruleSummary = state.aiCoach || "完成設定後會生成教練建議。";
+
+  if (state.ai?.status === "loading") {
+    aiCoachSummary.innerHTML = `<div class="ai-block"><strong>真 AI 教練分析生成中...</strong><p>系統正根據你既最新活動、目標同限制整理分析。</p></div>`;
+  } else if (llmSummary) {
+    aiCoachSummary.innerHTML = `
+      <div class="ai-block">
+        <strong>真 AI 教練分析</strong>
+        <p>${escapeHtml(llmSummary).replace(/\n+/g, "</p><p>")}</p>
+      </div>
+      <div class="ai-block ai-block-secondary">
+        <strong>規則引擎摘要</strong>
+        <p>${escapeHtml(ruleSummary)}</p>
+      </div>`;
+  } else {
+    aiCoachSummary.innerHTML = `
+      <div class="ai-block">
+        <strong>規則引擎摘要</strong>
+        <p>${escapeHtml(ruleSummary)}</p>
+      </div>`;
+  }
+
+  if (state.ai?.status === "error") {
+    aiCoachMeta.textContent = `真 AI 暫時未能更新：${state.ai.lastError}`;
+  } else if (state.ai?.lastUpdated) {
+    aiCoachMeta.textContent = `真 AI 上次更新：${formatDateTime(state.ai.lastUpdated)} · 模型 ${state.ai.model}`;
+  } else if (state.ai?.apiKey) {
+    aiCoachMeta.textContent = `已連接 OpenAI · 模型 ${state.ai.model}`;
+  } else {
+    aiCoachMeta.textContent = "未連接 OpenAI API key，目前顯示規則式教練分析。";
+  }
 }
 
 function renderWeather() {
@@ -1115,7 +1462,10 @@ function renderPlan(schedule, fitness, recommendations) {
     `${raceLine} 本週安排 ${quality} 個重點訓練日。` +
     ` 建議週跑量約 ${recommendations.weeklyDistance} km，長課約 ${recommendations.maxLongRun} km。` +
     ` 目前身體狀況：${fitness.readiness}，疲勞：${fitness.fatigue}。`;
-  planBoard.innerHTML = renderPlanDetailTable(schedule);
+  const aiPlanNote = state.ai?.planInsight
+    ? `<div class="plan-ai-note"><strong>真 AI 週摘要</strong><p>${escapeHtml(state.ai.planInsight)}</p></div>`
+    : "";
+  planBoard.innerHTML = `${aiPlanNote}${renderPlanDetailTable(schedule)}`;
 }
 
 function renderPlanDetailTable(schedule) {
@@ -1264,6 +1614,14 @@ function renderActivityDetail(activity) {
     .filter((item) => item.type === activity.type && item.date !== activity.date)
     .slice(0, 5);
   const detail = analyzeSingleActivity(activity, similar, state.fitness);
+  const aiInsight = state.ai?.activityInsights?.[activityInsightKey(activity)];
+  const aiBlock = aiInsight
+    ? aiInsight.status === "loading"
+      ? `<div class="detail-section"><strong>真 AI 活動分析</strong><div>分析生成中...</div></div>`
+      : `<div class="detail-section"><strong>真 AI 活動分析</strong><div>${escapeHtml(aiInsight.text).replace(/\n+/g, "<br>")}</div></div>`
+    : state.ai?.apiKey
+      ? `<div class="detail-section"><strong>真 AI 活動分析</strong><div>撳開活動後會自動生成。</div></div>`
+      : "";
   activityDetail.innerHTML = `
     <div class="detail-title">${activity.date} · ${activity.type}</div>
     <div class="detail-grid">
@@ -1283,7 +1641,12 @@ function renderActivityDetail(activity) {
         <strong>課表符合度</strong>
         <div>${detail.adherence}</div>
       </div>
+      ${aiBlock}
     </div>`;
+
+  if (state.ai?.apiKey && !aiInsight) {
+    refreshActivityAiAnalysis(activity);
+  }
 }
 
 function analyzeSingleActivity(activity, comparableActivities, fitness) {
@@ -1770,6 +2133,27 @@ function renderAll() {
 function updateHeadlines() {
   document.querySelector("#headlineGoal").textContent = describeGoal(state.profile);
   document.querySelector("#headlineInsight").textContent = state.fitness?.readiness || state.lastInsight || "未有活動";
+}
+
+function escapeHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function formatDateTime(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  return date.toLocaleString("zh-HK", {
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 function describeGoal(profile) {

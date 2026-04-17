@@ -214,6 +214,26 @@ h1 {
   gap: 16px;
 }
 
+.ai-config-form {
+  margin-bottom: 14px;
+}
+
+.ai-block {
+  display: grid;
+  gap: 8px;
+}
+
+.ai-block p {
+  margin: 0;
+  line-height: 1.7;
+}
+
+.ai-block-secondary {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(28, 34, 32, 0.08);
+}
+
 .grid {
   display: grid;
   gap: 14px;
@@ -432,6 +452,25 @@ textarea {
 
 .plan-board {
   grid-template-columns: 1fr;
+}
+
+.plan-ai-note {
+  margin-bottom: 14px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: rgba(45, 122, 91, 0.08);
+  border: 1px solid rgba(45, 122, 91, 0.12);
+}
+
+.plan-ai-note strong {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--accent);
+}
+
+.plan-ai-note p {
+  margin: 0;
+  line-height: 1.7;
 }
 
 .activity-calendar {

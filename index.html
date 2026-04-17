@@ -250,8 +250,28 @@
       <section class="panel panel-wide">
         <div class="panel-title">
           <h2>3. AI 教練分析</h2>
-          <p>AI 會綜合目標時間、身體狀況、生活限制同最近訓練去解釋點樣調整課表。</p>
+          <p>可選擇接入 OpenAI，將而家既規則式分析升級成真正 LLM 教練解讀。</p>
         </div>
+        <form id="aiCoachConfigForm" class="stack ai-config-form">
+          <div class="grid two">
+            <label>
+              <span>OpenAI API key</span>
+              <input name="apiKey" type="password" placeholder="sk-..." autocomplete="off">
+            </label>
+            <label>
+              <span>AI 模型</span>
+              <select name="aiModel">
+                <option value="gpt-5-mini" selected>gpt-5-mini</option>
+                <option value="gpt-5">gpt-5</option>
+              </select>
+            </label>
+          </div>
+          <div class="action-row">
+            <button class="primary-button" type="submit">儲存 AI 設定</button>
+            <button id="aiCoachRefreshBtn" class="secondary-button" type="button">重新生成真 AI 分析</button>
+          </div>
+          <div id="aiCoachMeta" class="status-card">未連接 OpenAI API key，目前顯示規則式教練分析。</div>
+        </form>
         <div id="aiCoachSummary" class="status-card">完成設定同匯入活動後，AI 會開始解讀你既訓練方向。</div>
       </section>
 
