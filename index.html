@@ -1,0 +1,393 @@
+﻿<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sun AI運動教練系統</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Noto+Sans+HK:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="page-shell">
+    <section class="brand-banner">
+      <p class="brand-kicker">Performance Intelligence Platform</p>
+      <h1 class="brand-title">Sun AI運動教練系統</h1>
+      <p class="brand-subtitle">結合目標管理、天氣 dry windows、活動紀錄與 AI 分析，為你動態調整訓練計劃。</p>
+    </section>
+
+    <header class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow">Adaptive Running Coach</p>
+        <h1>用你真實近況去出課表，而唔係只跟目標配速硬推。</h1>
+        <p class="hero-text">
+          系統會綜合你既目標完賽時間、近期活動、身體狀況、可跑時段同 dry windows，
+          幫你安排每週訓練、分析每次跑步表現，並持續更新目前能力與進度。
+        </p>
+      </div>
+      <div class="hero-card">
+        <div class="hero-stat">
+          <span class="stat-label">目前目標</span>
+          <strong id="headlineGoal">未設定目標</strong>
+        </div>
+        <div class="hero-stat">
+          <span class="stat-label">Dry windows</span>
+          <strong id="headlineWindows">未載入天氣</strong>
+        </div>
+        <div class="hero-stat">
+          <span class="stat-label">最新提醒</span>
+          <strong id="headlineInsight">等待分析</strong>
+        </div>
+      </div>
+    </header>
+
+    <main class="dashboard">
+      <section class="panel panel-wide">
+        <div class="panel-title">
+          <h2>4. 當前狀況與限制</h2>
+          <p>呢部分會經常更新，例如傷患、睡眠、可跑時段、跑唔到嘅日子同特別安排。</p>
+        </div>
+        <form id="currentStatusForm" class="stack">
+          <div class="grid three">
+            <label>
+              <span>工作 / 生活負荷</span>
+              <select name="lifeLoad">
+                <option value="light">輕</option>
+                <option value="moderate" selected>中</option>
+                <option value="heavy">高</option>
+              </select>
+            </label>
+            <label>
+              <span>睡眠質素</span>
+              <select name="sleepQuality">
+                <option value="good">好</option>
+                <option value="average" selected>一般</option>
+                <option value="poor">差</option>
+              </select>
+            </label>
+            <label>
+              <span>傷患 / 不適</span>
+              <select name="injuryStatus">
+                <option value="none" selected>沒有</option>
+                <option value="niggle">有少少唔舒服</option>
+                <option value="injured">受傷 / 需要保守</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="grid two">
+            <label>
+              <span>雨天容忍度 (mm)</span>
+              <input name="rainTolerance" type="number" min="0" max="5" step="0.1" value="0.2">
+            </label>
+            <label>
+              <span>不能跑步日子</span>
+              <div class="chips" id="blockedDayPicker">
+                <button type="button" class="chip" data-day="Monday">Mon</button>
+                <button type="button" class="chip" data-day="Tuesday">Tue</button>
+                <button type="button" class="chip" data-day="Wednesday">Wed</button>
+                <button type="button" class="chip" data-day="Thursday">Thu</button>
+                <button type="button" class="chip" data-day="Friday">Fri</button>
+                <button type="button" class="chip" data-day="Saturday">Sat</button>
+                <button type="button" class="chip" data-day="Sunday">Sun</button>
+              </div>
+            </label>
+          </div>
+
+          <label>
+            <span>特別安排 / 備註</span>
+            <textarea name="lifeNotes" rows="3" placeholder="例如出差、OT、家庭安排、某幾日只能休息"></textarea>
+          </label>
+
+          <label>
+            <span>可跑時段</span>
+            <div class="availability-group">
+              <div>
+                <div class="sub-label">平日</div>
+                <div class="chips" id="timeWindowPickerWeekday">
+                  <button type="button" class="chip" data-slot="6">06:00</button>
+                  <button type="button" class="chip" data-slot="7">07:00</button>
+                  <button type="button" class="chip" data-slot="8">08:00</button>
+                  <button type="button" class="chip" data-slot="10">10:00</button>
+                  <button type="button" class="chip active" data-slot="11">11:00</button>
+                  <button type="button" class="chip" data-slot="12">12:00</button>
+                  <button type="button" class="chip active" data-slot="14">14:00</button>
+                  <button type="button" class="chip active" data-slot="15">15:00</button>
+                  <button type="button" class="chip" data-slot="16">16:00</button>
+                  <button type="button" class="chip" data-slot="18">18:00</button>
+                  <button type="button" class="chip" data-slot="19">19:00</button>
+                  <button type="button" class="chip" data-slot="20">20:00</button>
+                </div>
+              </div>
+              <div>
+                <div class="sub-label">週末</div>
+                <div class="chips" id="timeWindowPickerWeekend">
+                  <button type="button" class="chip active" data-slot="6">06:00</button>
+                  <button type="button" class="chip active" data-slot="7">07:00</button>
+                  <button type="button" class="chip active" data-slot="8">08:00</button>
+                  <button type="button" class="chip active" data-slot="9">09:00</button>
+                  <button type="button" class="chip active" data-slot="10">10:00</button>
+                  <button type="button" class="chip active" data-slot="11">11:00</button>
+                  <button type="button" class="chip active" data-slot="12">12:00</button>
+                  <button type="button" class="chip active" data-slot="13">13:00</button>
+                  <button type="button" class="chip active" data-slot="14">14:00</button>
+                  <button type="button" class="chip active" data-slot="15">15:00</button>
+                  <button type="button" class="chip active" data-slot="16">16:00</button>
+                  <button type="button" class="chip active" data-slot="17">17:00</button>
+                  <button type="button" class="chip active" data-slot="18">18:00</button>
+                  <button type="button" class="chip active" data-slot="19">19:00</button>
+                  <button type="button" class="chip active" data-slot="20">20:00</button>
+                </div>
+              </div>
+            </div>
+          </label>
+
+          <button class="primary-button" type="submit">更新當前狀況</button>
+        </form>
+      </section>
+
+      <section class="panel panel-form">
+        <div class="panel-title">
+          <h2>7. 目標設定</h2>
+          <p>呢部分通常唔會成日改，主要設定賽事目標、位置同訓練基本方向。</p>
+        </div>
+        <form id="goalForm" class="stack">
+          <div class="grid two">
+            <label>
+              <span>地點</span>
+              <input name="location" type="text" placeholder="例如 London / Hong Kong" required>
+            </label>
+            <label>
+              <span>跑步經驗</span>
+              <select name="experience">
+                <option value="beginner">初階</option>
+                <option value="intermediate" selected>中階</option>
+                <option value="advanced">進階</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="grid three">
+            <label>
+              <span>目標距離</span>
+              <select name="goal">
+                <option value="5k">5K</option>
+                <option value="10k" selected>10K</option>
+                <option value="half">半馬</option>
+                <option value="marathon">全馬</option>
+                <option value="base">打底 / 恢復期</option>
+              </select>
+            </label>
+            <label>
+              <span>比賽日期</span>
+              <input name="raceDate" type="date">
+            </label>
+            <label>
+              <span>目標完賽時間</span>
+              <input name="targetTime" type="text" inputmode="numeric" placeholder="例如 0:55 或 1:45:00" required>
+            </label>
+          </div>
+
+          <div class="grid two">
+            <label>
+              <span>每週訓練日數</span>
+              <input name="daysPerWeek" type="number" min="2" max="7" value="4" required>
+            </label>
+            <label>
+              <span>長課偏好日子</span>
+              <select name="longRunDay">
+                <option value="Monday">星期一</option>
+                <option value="Tuesday">星期二</option>
+                <option value="Wednesday">星期三</option>
+                <option value="Thursday">星期四</option>
+                <option value="Friday">星期五</option>
+                <option value="Saturday">星期六</option>
+                <option value="Sunday" selected>星期日</option>
+              </select>
+            </label>
+          </div>
+
+          <input name="targetPace" type="hidden" value="">
+
+          <button class="primary-button" type="submit">更新目標設定</button>
+        </form>
+      </section>
+
+      <section class="panel">
+        <div class="panel-title">
+          <h2>5. 體能分析</h2>
+          <p>根據紀錄推算你近況、負荷與比賽準備程度，課表會直接跟住變。</p>
+        </div>
+        <div id="goalProgress" class="progress-card">
+          <div class="progress-head">
+            <strong>目標進度</strong>
+            <span id="goalProgressLabel">等待分析</span>
+          </div>
+          <div id="goalProgressStats" class="progress-stats">
+            <div class="progress-stat">
+              <span class="progress-stat-label">目前能力</span>
+              <strong id="currentAbilityValue">--</strong>
+            </div>
+            <div class="progress-stat">
+              <span class="progress-stat-label">目標能力</span>
+              <strong id="targetAbilityValue">--</strong>
+            </div>
+            <div class="progress-stat">
+              <span class="progress-stat-label">差距</span>
+              <strong id="abilityGapValue">--</strong>
+            </div>
+          </div>
+          <div class="progress-bar">
+            <div id="goalProgressFill" class="progress-fill"></div>
+          </div>
+          <div id="goalProgressDetail" class="progress-detail">完成更多活動後會顯示你距離目標仲差幾多。</div>
+        </div>
+        <div id="fitnessCards" class="metric-grid"></div>
+        <div id="fitnessNarrative" class="status-card">未有足夠紀錄去建立體能分析。</div>
+      </section>
+
+      <section class="panel panel-wide">
+        <div class="panel-title">
+          <h2>3. AI 教練分析</h2>
+          <p>AI 會綜合目標時間、身體狀況、生活限制同最近訓練去解釋點樣調整課表。</p>
+        </div>
+        <div id="aiCoachSummary" class="status-card">完成設定同匯入活動後，AI 會開始解讀你既訓練方向。</div>
+      </section>
+
+      <section class="panel panel-wide">
+        <div class="panel-title">
+          <h2>6. Dry Windows</h2>
+          <p>用未來 7 日逐小時預報，揀出最適合戶外跑嘅時段。</p>
+        </div>
+        <div id="weatherStatus" class="status-card">未載入天氣資料。</div>
+        <div id="weatherCards" class="weather-cards"></div>
+      </section>
+
+      <section class="panel panel-wide">
+        <div class="panel-title">
+          <h2>1. 動態每週訓練計劃</h2>
+          <p>計劃會因應目標時間、賽事日期、dry windows 同最近身體狀況調整。</p>
+        </div>
+        <div id="planSummary" class="status-card">先完成設定以生成本週計劃。</div>
+        <div id="planBoard" class="plan-board"></div>
+      </section>
+
+      <section class="panel panel-form">
+        <div class="panel-title">
+          <h2>2. 運動紀錄</h2>
+          <p>支援手動新增同批量上傳多個 CSV，系統會自動合併、排序同分析。</p>
+        </div>
+        <form id="activityForm" class="stack">
+          <div class="grid three">
+            <label>
+              <span>日期</span>
+              <input name="date" type="date" required>
+            </label>
+            <label>
+              <span>活動類型</span>
+              <select name="type">
+                <option value="easy">Easy Run</option>
+                <option value="tempo">Tempo</option>
+                <option value="interval">Intervals</option>
+                <option value="long">Long Run</option>
+                <option value="recovery">Recovery Run</option>
+                <option value="cross">Cross Training</option>
+                <option value="race">Race</option>
+              </select>
+            </label>
+            <label>
+              <span>主觀強度 RPE (1-10)</span>
+              <input name="rpe" type="number" min="1" max="10" step="1" value="5">
+            </label>
+          </div>
+
+          <div class="grid four">
+            <label>
+              <span>距離 (km)</span>
+              <input name="distance" type="number" min="0" step="0.1" required>
+            </label>
+            <label>
+              <span>時間 (分鐘)</span>
+              <input name="duration" type="number" min="1" step="1" required>
+            </label>
+            <label>
+              <span>平均心率</span>
+              <input name="avgHr" type="number" min="0" step="1">
+            </label>
+            <label>
+              <span>海拔爬升 (m)</span>
+              <input name="elevation" type="number" min="0" step="1">
+            </label>
+          </div>
+
+          <div class="grid two">
+            <label>
+              <span>休息心率</span>
+              <input name="restingHr" type="number" min="0" step="1">
+            </label>
+            <label>
+              <span>備註</span>
+              <input name="notes" type="text" placeholder="例如覺得好攰、落雨、腳有少少緊">
+            </label>
+          </div>
+
+          <div class="action-row">
+            <button class="primary-button" type="submit">加入活動紀錄</button>
+            <label class="upload-button">
+              批量上傳 CSV
+              <input id="csvInput" type="file" accept=".csv" multiple>
+            </label>
+          </div>
+        </form>
+        <div class="action-row utility-row">
+          <button id="clearActivitiesBtn" class="secondary-button" type="button">清除已匯入活動</button>
+          <button id="resetDatabaseBtn" class="danger-button" type="button">清除舊匯入資料 / 重建資料庫</button>
+        </div>
+        <div id="csvStatus" class="status-card">未上傳 CSV 檔案。</div>
+        <div id="activityInsight" class="status-card">活動分析會喺呢度顯示。</div>
+        <section class="activity-calendar">
+          <div class="calendar-header">
+            <button id="calendarPrev" type="button" class="calendar-nav">上一月</button>
+            <strong id="calendarTitle">活動月曆</strong>
+            <button id="calendarNext" type="button" class="calendar-nav">下一月</button>
+          </div>
+          <div class="calendar-weekdays">
+            <span>Mon</span>
+            <span>Tue</span>
+            <span>Wed</span>
+            <span>Thu</span>
+            <span>Fri</span>
+            <span>Sat</span>
+            <span>Sun</span>
+          </div>
+          <div id="activityCalendarRows" class="calendar-rows"></div>
+        </section>
+        <div id="activityDetail" class="activity-detail-card">點擊月曆或活動紀錄，即可查看該次活動分析。</div>
+        <div id="activityTableWrap"></div>
+      </section>
+    </main>
+  </div>
+
+  <template id="weatherCardTemplate">
+    <article class="weather-card">
+      <div class="weather-header">
+        <h3></h3>
+        <span class="weather-score"></span>
+      </div>
+      <p class="weather-window"></p>
+      <p class="weather-meta"></p>
+    </article>
+  </template>
+
+  <template id="planCardTemplate">
+    <article class="plan-card">
+      <div class="plan-day"></div>
+      <div class="plan-session"></div>
+      <div class="plan-details"></div>
+    </article>
+  </template>
+
+  <script src="app.js"></script>
+</body>
+</html>
