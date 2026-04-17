@@ -500,6 +500,7 @@ textarea {
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--muted);
+  text-align: center;
 }
 
 .calendar-weekly-label {
