@@ -487,9 +487,10 @@ textarea {
 
 .calendar-weekdays {
   display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(7, minmax(0, 1fr)) 220px;
+  gap: 12px;
   margin-bottom: 8px;
+  align-items: end;
 }
 
 .calendar-weekdays span {
@@ -499,6 +500,10 @@ textarea {
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--muted);
+}
+
+.calendar-weekly-label {
+  text-align: left;
 }
 
 .calendar-nav {
@@ -901,6 +906,15 @@ tr:last-child td {
   .detail-grid,
   .progress-stats {
     grid-template-columns: 1fr;
+  }
+
+  .calendar-weekdays {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .calendar-weekly-label {
+    display: none;
   }
 
   .panel-form {
